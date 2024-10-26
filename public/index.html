@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Processor Tester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #output {
+            white-space: pre-wrap;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #progressBar {
+            width: 100%;
+            background-color: #f0f0f0;
+            padding: 3px;
+            border-radius: 3px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, .2);
+        }
+        #progressBar div {
+            width: 0;
+            height: 24px;
+            background-color: #4CAF50;
+            border-radius: 3px;
+            transition: width 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Processor Tester</h1>
+    <form id="uploadForm">
+        <input type="file" id="imageInput" accept="image/jpeg,image/png" required>
+        <input type="text" id="apiKeyInput" placeholder="Enter API Key" required>
+        <button type="submit">Process Image</button>
+    </form>
+    <h2>Output:</h2>
+    <pre id="output"></pre>
+
+    <h2>Process Folder</h2>
+    <button id="processFolderBtn">Process Images in Folder</button>
+    <div id="progressBar"><div></div></div>
+    <pre id="folderOutput"></pre>
+
+    <script src="script.js"></script>
+</body>
+</html>

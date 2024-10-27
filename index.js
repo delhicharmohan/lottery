@@ -193,7 +193,7 @@ async function processImage(imageBuffer) {
     const dataExtractionPrompt = `
       Extract the following details from the given text:
       - Date
-      - 12-digit numeric code starting with 4
+      - 12-digit numeric code
       - Amount in INR (remove commas and check if it has decimal point)
       Validate if the text suggests the image has been edited in any way.
       Return ONLY the JSON object in this format:

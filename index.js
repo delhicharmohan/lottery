@@ -308,6 +308,9 @@ app.post('/api/process-image',
         return res.status(500).json({ error: extractedData.error });
       }
 
+      if (extractedData.utr && extractedData.utr.length !== 12) {
+        extractedData.utr = 'N/A'; 
+      }
       // Save transaction
       const transaction = new Transaction({
         userId: user._id,

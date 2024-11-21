@@ -168,7 +168,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Image processing function
 async function processImage(imageBuffer) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const rawTextPrompt = `
       Analyze the image and extract ALL text visible in it. 
@@ -194,7 +194,7 @@ async function processImage(imageBuffer) {
       Extract the following details from the given text:
       - Date
       - 12-digit numeric code
-      - Amount in INR (remove commas and check if it has decimal point)
+      - Amount in INR (remove commas and check if it has decimal point, if yes print exact number)
       Validate if the text suggests the image has been edited in any way.
       Return ONLY the JSON object in this format:
       {

@@ -168,7 +168,15 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Image processing function
 async function processImage(imageBuffer) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+
+    const generationConfig = {
+      temperature: 0.1,
+      topP: 0.1,
+      topK: 1,
+      maxOutputTokens: 8192,
+      responseMimeType: "text/plain",
+    };
 
     const rawTextPrompt = `
       Analyze the image and extract ALL text visible in it. 
@@ -176,15 +184,20 @@ async function processImage(imageBuffer) {
       Provide the extracted text as a single, unformatted string.
     `;
 
-    const rawTextParts = [
-      { text: rawTextPrompt },
-      {
-        inlineData: {
-          mimeType: "image/jpeg",
-          data: imageBuffer.toString('base64')
-        }
-      }
-    ];
+    // Correct format for image content
+    const rawTextParts = {
+      contents: [{
+        parts: [
+          { text: rawTextPrompt },
+          {
+            inline_data: {
+              mime_type: "image/jpeg",
+              data: imageBuffer.toString('base64')
+            }
+          }
+        ]
+      }]
+    };
 
     const rawTextResult = await model.generateContent(rawTextParts);
     const rawTextResponse = await rawTextResult.response;
@@ -206,13 +219,29 @@ async function processImage(imageBuffer) {
     `;
 
     const dataExtractionResult = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: dataExtractionPrompt + '\n\nText to analyze:\n' + rawText }]}]
+      contents: [{ 
+        parts: [{ text: dataExtractionPrompt + '\n\nText to analyze:\n' + rawText }]
+      }],
+      generationConfig
     });
+
     const dataExtractionResponse = await dataExtractionResult.response;
     let extractedDataText = dataExtractionResponse.text();
 
     let jsonMatch = extractedDataText.match(/\{[\s\S]*\}/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to extract structured data from the text.' };
+    let extractedData = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to extract structured data from the text.' };
+
+    //Add new logic for amount processing with proper type checking
+    if (extractedData.amount_in_inr && typeof extractedData.amount_in_inr === 'string') {
+      const amount = parseFloat(extractedData.amount_in_inr.replace(/,/g, ''));
+      
+      if (!isNaN(amount) && amount > 100000) {
+        const adjustedAmount = amount / 10;
+        extractedData.amount_in_inr = adjustedAmount.toFixed(2);
+      } 
+    }
+
+    return extractedData;
   } catch (error) {
     console.error('Error processing image:', error);
     return { error: 'An error occurred while processing the image.' };

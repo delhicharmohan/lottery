@@ -179,37 +179,50 @@ async function processImage(imageBuffer) {
     };
 
     const rawTextPrompt = `
-      Analyze the image and extract ALL text visible in it. 
+      Analyze the provided image and extract ALL text visible in it.
       Include any numbers, dates, transaction details, and any other relevant information.
       Provide the extracted text as a single, unformatted string.
     `;
 
-    // Correct format for image content
-    const rawTextParts = {
+    const requestParts = {
       contents: [{
         parts: [
-          { text: rawTextPrompt },
           {
             inline_data: {
               mime_type: "image/jpeg",
               data: imageBuffer.toString('base64')
             }
-          }
+          },
+          { text: rawTextPrompt }
         ]
-      }]
+      }],
+      generationConfig
     };
 
-    const rawTextResult = await model.generateContent(rawTextParts);
-    const rawTextResponse = await rawTextResult.response;
-    const rawText = rawTextResponse.text().trim();
+    const result = await model.generateContent(requestParts);
+    const response = await result.response;
+    const rawText = response.text().trim();
+    console.log("Raw Text:", rawText);
+
+    // Extract 12-digit numbers using regex
+    const twelveDigitRegex = /\b\d{12}\b/g;
+    const utrMatches = rawText.match(twelveDigitRegex) || [];
+    console.log("Found UTR numbers:", utrMatches);
 
     const dataExtractionPrompt = `
       Extract the following details from the given text:
       - Date
-      - 12-digit numeric code
-      - Amount in INR (remove commas and check if it has decimal point, if yes print exact number)
-      Validate if the text suggests the image has been edited in any way.
-      Return ONLY the JSON object in this format:
+      - 12-digit numeric code (UTR number)
+      - Amount in INR (maintain exact format, remove commas but keep decimal point)
+      - Check for signs of image editing
+      
+      Rules:
+      - For UTR, prefer 12-digit numbers starting with 4
+      - If multiple 12-digit numbers found, list them all
+      - remove commas from amount and keep decimal point
+      - Check carefully for signs of editing
+      
+      Return ONLY a JSON object in this format:
       {
         "date": "[extracted_date]",
         "utr": "[12-digit_utr]",
@@ -225,20 +238,42 @@ async function processImage(imageBuffer) {
       generationConfig
     });
 
-    const dataExtractionResponse = await dataExtractionResult.response;
-    let extractedDataText = dataExtractionResponse.text();
+    const extractionResponse = await dataExtractionResult.response;
+    let extractedDataText = extractionResponse.text();
+    console.log("Extracted Data Text:", extractedDataText);
 
     let jsonMatch = extractedDataText.match(/\{[\s\S]*\}/);
     let extractedData = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to extract structured data from the text.' };
 
-    //Add new logic for amount processing with proper type checking
+    // Compare and validate UTR
+    if (utrMatches.length > 0) {
+      // If extracted UTR is null/undefined but we have regex matches
+      if (!extractedData.utr && utrMatches.length > 0) {
+        // Prefer UTR starting with 4
+        const utrWith4 = utrMatches.find(num => num.startsWith('4'));
+        extractedData.utr = utrWith4 || utrMatches[0];
+        
+        if (utrMatches.length > 1) {
+          extractedData.utr_alternatives = utrMatches.filter(utr => utr !== extractedData.utr);
+        }
+      }
+      // If we have a UTR but it doesn't match regex findings
+      else if (extractedData.utr && !utrMatches.includes(extractedData.utr)) {
+        console.log("UTR mismatch - Extracted:", extractedData.utr, "Regex matches:", utrMatches);
+        // Prefer regex matches as they're more reliable
+        const utrWith4 = utrMatches.find(num => num.startsWith('4'));
+        extractedData.utr = utrWith4 || utrMatches[0];
+        extractedData.utr_alternatives = utrMatches.slice(1);
+      }
+    }
+
+    // Process amount
     if (extractedData.amount_in_inr && typeof extractedData.amount_in_inr === 'string') {
       const amount = parseFloat(extractedData.amount_in_inr.replace(/,/g, ''));
-      
       if (!isNaN(amount) && amount > 100000) {
         const adjustedAmount = amount / 10;
         extractedData.amount_in_inr = adjustedAmount.toFixed(2);
-      } 
+      }
     }
 
     return extractedData;

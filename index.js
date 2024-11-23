@@ -209,17 +209,24 @@ async function processImage(imageBuffer) {
     const utrMatches = rawText.match(twelveDigitRegex) || [];
     console.log("Found UTR numbers:", utrMatches);
 
+    // Extract amount using regex
+    const amountRegex = /(?:Rs\.?|INR)\s*([0-9,]+\.?\d{0,2})/gi;
+    const amountMatches = [...rawText.matchAll(amountRegex)].map(match => 
+      match[1].replace(/,/g, '')
+    );
+    console.log("Found amounts:", amountMatches);
+
     const dataExtractionPrompt = `
       Extract the following details from the given text:
       - Date
       - 12-digit numeric code (UTR number)
-      - Amount in INR (maintain exact format, remove commas but keep decimal point)
+      - Amount in INR (remove commas but keep decimal point)
       - Check for signs of image editing
       
       Rules:
       - For UTR, prefer 12-digit numbers starting with 4
       - If multiple 12-digit numbers found, list them all
-      - remove commas from amount and keep decimal point
+      - Remove commas from amount and keep decimal point
       - Check carefully for signs of editing
       
       Return ONLY a JSON object in this format:
@@ -240,39 +247,27 @@ async function processImage(imageBuffer) {
 
     const extractionResponse = await dataExtractionResult.response;
     let extractedDataText = extractionResponse.text();
-    console.log("Extracted Data Text:", extractedDataText);
-
     let jsonMatch = extractedDataText.match(/\{[\s\S]*\}/);
     let extractedData = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to extract structured data from the text.' };
 
-    // Compare and validate UTR
+    // Validate and update UTR
     if (utrMatches.length > 0) {
-      // If extracted UTR is null/undefined but we have regex matches
-      if (!extractedData.utr && utrMatches.length > 0) {
-        // Prefer UTR starting with 4
+      if (!extractedData.utr || !utrMatches.includes(extractedData.utr)) {
         const utrWith4 = utrMatches.find(num => num.startsWith('4'));
         extractedData.utr = utrWith4 || utrMatches[0];
-        
         if (utrMatches.length > 1) {
           extractedData.utr_alternatives = utrMatches.filter(utr => utr !== extractedData.utr);
         }
       }
-      // If we have a UTR but it doesn't match regex findings
-      else if (extractedData.utr && !utrMatches.includes(extractedData.utr)) {
-        console.log("UTR mismatch - Extracted:", extractedData.utr, "Regex matches:", utrMatches);
-        // Prefer regex matches as they're more reliable
-        const utrWith4 = utrMatches.find(num => num.startsWith('4'));
-        extractedData.utr = utrWith4 || utrMatches[0];
-        extractedData.utr_alternatives = utrMatches.slice(1);
-      }
     }
 
-    // Process amount
-    if (extractedData.amount_in_inr && typeof extractedData.amount_in_inr === 'string') {
-      const amount = parseFloat(extractedData.amount_in_inr.replace(/,/g, ''));
-      if (!isNaN(amount) && amount > 100000) {
-        const adjustedAmount = amount / 10;
-        extractedData.amount_in_inr = adjustedAmount.toFixed(2);
+    // Validate and update amount
+    if (amountMatches.length > 0) {
+      if (!extractedData.amount_in_inr || !amountMatches.includes(extractedData.amount_in_inr.replace(/,/g, ''))) {
+        // Get the highest amount from matches
+        const amounts = amountMatches.map(amount => parseFloat(amount));
+        const highestAmount = Math.max(...amounts);
+        extractedData.amount_in_inr = highestAmount.toFixed(2);
       }
     }
 

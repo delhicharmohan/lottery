@@ -168,8 +168,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Image processing function
 async function processImage(imageBuffer) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
-
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const generationConfig = {
       temperature: 0.1,
       topP: 0.1,
@@ -202,19 +201,9 @@ async function processImage(imageBuffer) {
     const result = await model.generateContent(requestParts);
     const response = await result.response;
     const rawText = response.text().trim();
-    console.log("Raw Text:", rawText);
 
-    // Extract 12-digit numbers using regex
     const twelveDigitRegex = /\b\d{12}\b/g;
     const utrMatches = rawText.match(twelveDigitRegex) || [];
-    console.log("Found UTR numbers:", utrMatches);
-
-    // Extract amount using regex
-    const amountRegex = /(?:Rs\.?|INR)\s*([0-9,]+\.?\d{0,2})/gi;
-    const amountMatches = [...rawText.matchAll(amountRegex)].map(match => 
-      match[1].replace(/,/g, '')
-    );
-    console.log("Found amounts:", amountMatches);
 
     const dataExtractionPrompt = `
       Extract the following details from the given text:
@@ -250,7 +239,49 @@ async function processImage(imageBuffer) {
     let jsonMatch = extractedDataText.match(/\{[\s\S]*\}/);
     let extractedData = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to extract structured data from the text.' };
 
-    // Validate and update UTR
+    if (extractedData.amount_in_inr) {
+      const amount = parseFloat(extractedData.amount_in_inr.replace(/,/g, ''));
+      
+      if (amount > 100000) {
+        const surroundingText = rawText.slice(Math.max(0, rawText.indexOf(extractedData.amount_in_inr) - 50), 
+          Math.min(rawText.length, rawText.indexOf(extractedData.amount_in_inr) + extractedData.amount_in_inr.length + 50));
+
+        const amountVerificationPrompt = `
+          The extracted amount is ${amount}. Considering the surrounding text, is this amount correct, or is it off by a factor of 10 (too high or too low)? If incorrect, what is the correct amount?
+
+          Surrounding Text:
+          \`\`\`
+          ${surroundingText}
+          \`\`\`
+
+          Return ONLY a number or "correct" if the amount is accurate. If the extracted amount is not found in the surrounding text, return "not found".
+        `;
+
+        const verificationResult = await model.generateContent({
+          contents: [{
+            parts: [{ text: amountVerificationPrompt }]
+          }],
+          generationConfig
+        });
+
+        const verificationResponse = await verificationResult.response;
+        const verifiedAmountText = verificationResponse.text().trim();
+
+        let verifiedAmount;
+        if (verifiedAmountText.toLowerCase() === 'correct') {
+          verifiedAmount = amount;
+        } else if (verifiedAmountText.toLowerCase() === 'not found') {
+          verifiedAmount = amount;
+        } else {
+          verifiedAmount = parseFloat(verifiedAmountText);
+        }
+
+        if (!isNaN(verifiedAmount)) {
+          extractedData.amount_in_inr = verifiedAmount.toFixed(2);
+        }
+      }
+    }
+
     if (utrMatches.length > 0) {
       if (!extractedData.utr || !utrMatches.includes(extractedData.utr)) {
         const utrWith4 = utrMatches.find(num => num.startsWith('4'));
@@ -260,17 +291,6 @@ async function processImage(imageBuffer) {
         }
       }
     }
-
-    // Validate and update amount
-    if (amountMatches.length > 0) {
-      if (!extractedData.amount_in_inr || !amountMatches.includes(extractedData.amount_in_inr.replace(/,/g, ''))) {
-        // Get the highest amount from matches
-        const amounts = amountMatches.map(amount => parseFloat(amount));
-        const highestAmount = Math.max(...amounts);
-        extractedData.amount_in_inr = highestAmount.toFixed(2);
-      }
-    }
-
     return extractedData;
   } catch (error) {
     console.error('Error processing image:', error);

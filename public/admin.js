@@ -111,17 +111,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.success) {
-                const totalUsers = result.data.length;
-                const totalRequests = result.data.reduce((sum, user) => sum + user.requestCount, 0);
-                const activeUsers = result.data.filter(user => user.requestCount > 0).length;
+                // Update stats based on filtered data
+                const filteredUsers = result.data.filter(user => {
+                    if (!dateFilter) return true;
+                    return hasActivityInDateRange(user.lastRequest, dateFilter);
+                });
 
-                document.getElementById('totalUsers').textContent = totalUsers;
+                const totalRequests = filteredUsers.reduce((sum, user) => sum + user.requestCount, 0);
+                const activeUsers = filteredUsers.length;
+
+                document.getElementById('totalUsers').textContent = result.data.length;
                 document.getElementById('totalRequests').textContent = totalRequests;
                 document.getElementById('activeToday').textContent = activeUsers;
 
-                // Update table
+                // Update table with filtered data
                 const usersTableBody = document.getElementById('usersTableBody');
-                usersTableBody.innerHTML = result.data.map(user => `
+                usersTableBody.innerHTML = filteredUsers.map(user => `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="text-sm font-medium text-gray-900">${user.name}</div>
@@ -130,7 +135,27 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="text-sm text-gray-500">${user.email}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-mono text-gray-500">${user.apiKey}</div>
+                            <div class="flex items-center space-x-2">
+                                <div class="text-sm font-mono bg-gray-100 px-3 py-1 rounded" id="apiKey-${user.id}">
+                                    ${'•'.repeat(24)}
+                                </div>
+                                <button onclick="toggleApiKey('${user.id}', '${user.apiKey}')" 
+                                    class="text-blue-500 hover:text-blue-700 focus:outline-none"
+                                    title="Show/Hide API Key">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                                <button onclick="copyApiKey('${user.id}', '${user.apiKey}')"
+                                    class="text-gray-500 hover:text-gray-700 focus:outline-none"
+                                    title="Copy API Key">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                                        <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                                    </svg>
+                                </button>
+                            </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="text-sm text-gray-500">${user.requestCount}</div>
@@ -151,6 +176,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function hasActivityInDateRange(lastRequest, dateFilter) {
+        if (!lastRequest) return false;
+        
+        const date = new Date(lastRequest);
+        const today = new Date();
+        
+        switch(dateFilter) {
+            case 'today':
+                return date.toDateString() === today.toDateString();
+            case 'last7days':
+                const last7Days = new Date(today);
+                last7Days.setDate(last7Days.getDate() - 7);
+                return date >= last7Days;
+            case 'last30days':
+                const last30Days = new Date(today);
+                last30Days.setDate(last30Days.getDate() - 30);
+                return date >= last30Days;
+            case 'thisMonth':
+                return date.getMonth() === today.getMonth() && 
+                       date.getFullYear() === today.getFullYear();
+            default:
+                return true;
+        }
+    }
+
     // Add event listener for date filter changes
     document.getElementById('dateFilter').addEventListener('change', loadUsers);
 
@@ -166,3 +216,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 30000);
 });
+
+function toggleApiKey(userId, apiKey) {
+    const apiKeyElement = document.getElementById(`apiKey-${userId}`);
+    const isHidden = apiKeyElement.textContent.includes('•');
+    
+    if (isHidden) {
+        apiKeyElement.textContent = apiKey;
+        apiKeyElement.classList.add('bg-blue-50', 'text-blue-700');
+        apiKeyElement.classList.remove('bg-gray-100');
+        
+        // Auto-hide after 30 seconds
+        setTimeout(() => {
+            hideApiKey(userId);
+        }, 30000);
+    } else {
+        hideApiKey(userId);
+    }
+}
+
+function hideApiKey(userId) {
+    const apiKeyElement = document.getElementById(`apiKey-${userId}`);
+    apiKeyElement.textContent = '•'.repeat(24);
+    apiKeyElement.classList.remove('bg-blue-50', 'text-blue-700');
+    apiKeyElement.classList.add('bg-gray-100');
+}
+
+function copyApiKey(userId, apiKey) {
+    navigator.clipboard.writeText(apiKey).then(() => {
+        showToast('API Key copied to clipboard');
+    }).catch(() => {
+        showToast('Failed to copy API Key', 'error');
+    });
+}

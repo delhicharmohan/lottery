@@ -3,6 +3,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     
     const imageFile = document.getElementById('imageInput').files[0];
     const apiKey = document.getElementById('apiKeyInput').value;
+    const dateFilter = document.getElementById('dateFilter').value;
     const outputElement = document.getElementById('output');
 
     if (!imageFile) {
@@ -12,6 +13,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
 
     const formData = new FormData();
     formData.append('image', imageFile);
+    formData.append('dateFilter', dateFilter);
 
     try {
         const response = await fetch('/api/process-image', {
@@ -25,7 +27,6 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
         const result = await response.json();
 
         if (response.ok) {
-            // Create a formatted output string
             let outputString = '';
             if (result.data) {
                 outputString += `Date: ${result.data.date || 'N/A'}\n`;

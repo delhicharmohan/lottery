@@ -101,7 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         showLoading();
         try {
-            const response = await fetch('/api/admin/users', {
+            const dateFilter = document.getElementById('dateFilter').value;
+            const response = await fetch(`/api/admin/users?dateFilter=${dateFilter}`, {
                 headers: {
                     'X-API-Key': apiKeyInput.value
                 }
@@ -110,18 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
 
             if (result.success) {
-                // Update stats
                 const totalUsers = result.data.length;
                 const totalRequests = result.data.reduce((sum, user) => sum + user.requestCount, 0);
-                const activeToday = result.data.filter(user => {
-                    const today = new Date().toDateString();
-                    const userDate = new Date(user.lastRequest).toDateString();
-                    return today === userDate;
-                }).length;
+                const activeUsers = result.data.filter(user => user.requestCount > 0).length;
 
                 document.getElementById('totalUsers').textContent = totalUsers;
                 document.getElementById('totalRequests').textContent = totalRequests;
-                document.getElementById('activeToday').textContent = activeToday;
+                document.getElementById('activeToday').textContent = activeUsers;
 
                 // Update table
                 const usersTableBody = document.getElementById('usersTableBody');
@@ -146,8 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         </td>
                     </tr>
                 `).join('');
-            } else {
-                showToast(result.error || 'Error loading users', 'error');
             }
         } catch (error) {
             showToast('Error loading users', 'error');
@@ -156,6 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoading();
         }
     }
+
+    // Add event listener for date filter changes
+    document.getElementById('dateFilter').addEventListener('change', loadUsers);
 
     // Initial load
     if (apiKeyInput.value) {

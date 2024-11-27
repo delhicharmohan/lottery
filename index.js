@@ -60,7 +60,7 @@ const logSchema = new mongoose.Schema({
   timestamp: { 
     type: Date, 
     default: Date.now,
-    expires: 864000 // 10 days in seconds
+    expires: 3888000 // 10 days in seconds
   },
   processingData: {
     date: { type: String, default: 'N/A' },
@@ -344,19 +344,56 @@ app.post('/api/admin/users', authenticateUser, requireAdmin, async (req, res) =>
 
 app.get('/api/admin/users', authenticateUser, requireAdmin, async (req, res) => {
   try {
+    const { dateFilter } = req.query;
     const users = await UserProfile.find({ isAdmin: false })
       .select('-__v')
       .sort('-createdAt');
 
     const usersWithCounts = await Promise.all(users.map(async user => {
-      const requestCount = await Log.countDocuments({ userId: user._id });
+      let query = { userId: user._id };
+
+      // Add date filtering to log query
+      if (dateFilter) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        switch (dateFilter) {
+          case 'today':
+            query.timestamp = { 
+              $gte: today,
+              $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+            };
+            break;
+          case 'last7days':
+            const last7Days = new Date(today);
+            last7Days.setDate(last7Days.getDate() - 7);
+            query.timestamp = { $gte: last7Days };
+            break;
+          case 'last30days':
+            const last30Days = new Date(today);
+            last30Days.setDate(last30Days.getDate() - 30);
+            query.timestamp = { $gte: last30Days };
+            break;
+          case 'thisMonth':
+            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            query.timestamp = { $gte: firstDayOfMonth };
+            break;
+        }
+      }
+
+      const requestCount = await Log.countDocuments(query);
+      const lastRequest = await Log.findOne({ userId: user._id })
+        .sort({ timestamp: -1 })
+        .select('timestamp');
+
       return {
         id: user._id,
         name: user.name,
         email: user.email,
         apiKey: user.apiKey,
         requestCount,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        lastRequest: lastRequest?.timestamp
       };
     }));
 

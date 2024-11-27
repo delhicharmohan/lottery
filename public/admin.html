@@ -10,9 +10,16 @@
     <div class="container mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-            <div class="space-x-4">
+            <div class="space-x-4 flex items-center">
                 <input type="text" id="apiKeyInput" placeholder="Enter Admin API Key" 
                     class="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="dateFilter" class="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="last7days">Last 7 Days</option>
+                    <option value="last30days">Last 30 Days</option>
+                    <option value="thisMonth">This Month</option>
+                </select>
                 <button id="addUserBtn" 
                     class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     Add New User

@@ -33,14 +33,71 @@
             border-radius: 3px;
             transition: width 0.5s ease-in-out;
         }
+        #dateFilter {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            font-size: 14px;
+        }
+        
+        #dateFilter:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        form {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .form-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .form-control {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <h1>Image Processor Tester</h1>
     <form id="uploadForm">
-        <input type="file" id="imageInput" accept="image/jpeg,image/png" required>
-        <input type="text" id="apiKeyInput" placeholder="Enter API Key" required>
-        <button type="submit">Process Image</button>
+        <div class="form-group">
+            <select id="dateFilter" class="form-control">
+                <option value="">Select Date Range</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="last7days">Last 7 Days</option>
+                <option value="last30days">Last 30 Days</option>
+                <option value="thisMonth">This Month</option>
+            </select>
+            <input type="file" id="imageInput" accept="image/jpeg,image/png" required>
+            <input type="text" id="apiKeyInput" placeholder="Enter API Key" required>
+            <button type="submit">Process Image</button>
+        </div>
     </form>
     <h2>Output:</h2>
     <pre id="output"></pre>
